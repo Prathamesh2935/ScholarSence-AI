@@ -1,5 +1,7 @@
 """ScholarSense AI — FastAPI entrypoint."""
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,9 +11,21 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Comma-separated extra origins, e.g. ALLOWED_ORIGINS=https://a.vercel.app,https://b.example.com
+_extra_origins = [
+    o.strip()
+    for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if o.strip()
+]
+_allow_origins = [
+    "http://localhost:3000",
+    "https://scholar-sence-ai.vercel.app",
+    *_extra_origins,
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
