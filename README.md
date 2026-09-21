@@ -18,6 +18,7 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate  # Windows
 pip install -r requirements.txt
+pip install -r requirements-dev.txt  # tests only (pytest)
 copy .env.example .env
 uvicorn main:app --reload --port 8000
 ```

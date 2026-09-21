@@ -1,11 +1,11 @@
 """Vector store & hybrid retrieval (Backend Core, Step 3).
 
 Hybrid search = dense vector embeddings (``text-embedding-3-small`` via
-langchain-openai) fused with BM25 keyword matching via Reciprocal Rank
+the OpenAI SDK) fused with BM25 keyword matching via Reciprocal Rank
 Fusion (RRF) for high-precision citation retrieval.
 
 Graceful degradation (everything works offline):
-- No ``OPENAI_API_KEY`` / no langchain-openai -> deterministic hashed
+- No ``OPENAI_API_KEY`` / no openai package -> deterministic hashed
   bag-of-words embeddings (L2-normalized, dim 256).
 - No reachable Qdrant server -> ``QdrantClient(location=":memory:")`` ->
   pure-Python dict store with brute-force cosine.
@@ -156,7 +156,7 @@ def _hard_split_long_paragraph(para: dict[str, Any], target: int) -> list[dict[s
 
 
 # ---------------------------------------------------------------------------
-# Embeddings: OpenAI (langchain-openai) with offline hash fallback
+# Embeddings: OpenAI SDK with offline hash fallback
 # ---------------------------------------------------------------------------
 
 
@@ -193,21 +193,28 @@ class HashEmbeddingBackend(EmbeddingBackend):
 
 
 class OpenAIEmbeddingBackend(EmbeddingBackend):
-    """Dense embeddings via langchain-openai (text-embedding-3-small)."""
+    """Dense embeddings via the OpenAI SDK (text-embedding-3-small)."""
 
     name = "openai:text-embedding-3-small"
     dim = OPENAI_DIM
 
     def __init__(self, model: str = EMBEDDING_MODEL):
-        from langchain_openai import OpenAIEmbeddings  # type: ignore
+        from openai import OpenAI  # type: ignore
 
-        self._client = OpenAIEmbeddings(model=model)
+        self._client = OpenAI()
+        self._model = model
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
-        return [list(map(float, v)) for v in self._client.embed_documents(list(texts))]
+        out: list[list[float]] = []
+        for i in range(0, max(len(texts), 1), 100):
+            batch = list(texts[i : i + 100]) or [""]
+            resp = self._client.embeddings.create(model=self._model, input=batch)
+            out.extend([list(map(float, d.embedding)) for d in resp.data])
+        return out[: len(texts)]
 
     def embed_query(self, text: str) -> list[float]:
-        return list(map(float, self._client.embed_query(text)))
+        resp = self._client.embeddings.create(model=self._model, input=[text or " "])
+        return list(map(float, resp.data[0].embedding))
 
 
 def get_embedding_backend() -> EmbeddingBackend:
